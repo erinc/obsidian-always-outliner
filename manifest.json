@@ -1,0 +1,10 @@
+{
+  "id": "always-outliner",
+  "name": "Always Outliner",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.7",
+  "description": "Enforces outliner mode on top of the Outliner plugin: every line is a bullet.",
+  "author": "Erinc",
+  "authorUrl": "https://github.com/erinc/obsidian-always-outliner",
+  "isDesktopOnly": false
+}

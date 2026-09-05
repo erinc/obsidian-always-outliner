@@ -1,0 +1,70 @@
+{
+  "name": "always-outliner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enforce outliner mode on top of the Outliner plugin: every line is a bullet.",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "rollup --config rollup.config.mjs -w",
+    "build": "rollup --config rollup.config.mjs",
+    "lint": "prettier --check src && eslint src",
+    "test": "jest --forceExit src"
+  },
+  "author": "Erinc",
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.0",
+    "@babel/preset-typescript": "^7.28.5",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.6",
+    "@eslint/js": "^10.0.1",
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.0",
+    "babel-jest": "^30.2.0",
+    "eslint": "^10.0.2",
+    "jest": "^30.2.0",
+    "obsidian": "^1.12.3",
+    "prettier": "^3.8.1",
+    "rollup": "^4.59.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "babel": {
+    "presets": [
+      ["@babel/preset-env", { "targets": { "node": "current" } }],
+      "@babel/preset-typescript"
+    ]
+  },
+  "jest": {
+    "transform": {
+      "\\.ts$": "babel-jest"
+    },
+    "testRegex": ["/__tests__/.*\\.ts$"],
+    "moduleFileExtensions": ["js", "ts"],
+    "testEnvironment": "node"
+  },
+  "prettier": {
+    "plugins": ["@trivago/prettier-plugin-sort-imports"],
+    "importOrder": [
+      "^obsidian$",
+      "^@codemirror/.*$",
+      "<THIRD_PARTY_MODULES>",
+      "^\\./",
+      "^\\.\\./"
+    ],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "overrides": [
+      {
+        "files": "*.ts",
+        "options": {
+          "importOrderParserPlugins": ["typescript"]
+        }
+      }
+    ]
+  }
+}

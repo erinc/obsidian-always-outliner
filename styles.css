@@ -1,0 +1,13 @@
+/* Keep an empty active item looking like a Workflowy bullet, not Markdown. */
+.outliner-plugin-empty-list-marker {
+  color: transparent;
+  position: relative;
+}
+
+.outliner-plugin-empty-list-marker::after {
+  content: "•";
+  color: var(--text-muted);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
