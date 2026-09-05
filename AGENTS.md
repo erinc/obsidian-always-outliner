@@ -28,6 +28,11 @@ To run a single test file:
 npx jest src/utils/__tests__/keys.test.ts --forceExit
 ```
 
+Do NOT run `npm run build` or `npm run dev` from a sandboxed agent shell:
+Rollup takes minutes there versus <1s on the user's machine. Verify with
+`npm run lint`, `npm test`, and `npx tsc --noEmit -p tsconfig.json`
+(all fast), and let the user run the build.
+
 ## Directory Structure
 
 ```
@@ -46,16 +51,19 @@ The plugin registers three CodeMirror editor extensions:
 1. `Prec.highest` Enter keymap — splits plain lines into two bullets and
    swallows Enter on empty top-level bullets. Returns `false` for real list
    lines so the upstream Outliner plugin handles them.
-2. `Prec.high` Backspace keymap — swallows Backspace on the first line when
-   it is an empty bullet, so the first bullet cannot be removed.
+2. `Prec.high` Backspace keymap — on an empty bullet line with an empty
+   selection it deletes the line and joins the previous line (`mergeUp`),
+   except on the first line where the bullet is kept (`keep`), and next to
+   protected lines where the key is swallowed. Anything else falls through.
 3. A `ViewPlugin` background normalizer — rewrites every physical line into
-   a structurally valid list item (clamping indent jumps), except protected
-   blocks (frontmatter, fenced code, tables). Text changes are dispatched
+   a structurally valid list item (clamping indent jumps, treating a bare
+   marker like `-` as an empty bullet), except protected blocks
+   (frontmatter, fenced code, tables). Text changes are dispatched
    with `Transaction.addToHistory.of(false)` so repairs don't pollute undo.
 
 Keymap design rule: this plugin only claims keys the upstream plugin would
-mishandle (plain lines, empty first bullet). Everything else must fall
-through by returning `false`.
+mishandle (plain-line Enter, empty-bullet Backspace). Everything else must
+fall through by returning `false`.
 
 ## Tests
 

@@ -1,4 +1,5 @@
 import {
+  decideEmptyBulletBackspace,
   isEmptyBullet,
   isEmptyTopLevelBullet,
   isListItem,
@@ -39,7 +40,7 @@ describe("splitPlainLine", () => {
     },
   );
 
-  test.each([["```"], ["---"], ["| a | b |"]])(
+  test.each([["```"], ["---"], ["| a | b |"], ["| a"]])(
     "returns null for protected line %s",
     (line) => {
       expect(splitPlainLine({ line, anchorCh: 0, headCh: 0 })).toBeNull();
@@ -79,6 +80,35 @@ describe("isEmptyBullet", () => {
   );
 });
 
+describe("decideEmptyBulletBackspace", () => {
+  test.each([["- "], ["  - "], ["- [ ] "], ["1. "]])(
+    "keeps the bullet on the first line: %s",
+    (lineText) => {
+      expect(decideEmptyBulletBackspace({ lineText, lineNumber: 1 })).toBe(
+        "keep",
+      );
+    },
+  );
+
+  test.each([["- "], ["  - "], ["- [ ] "], ["2. "]])(
+    "merges up on later lines: %s",
+    (lineText) => {
+      expect(decideEmptyBulletBackspace({ lineText, lineNumber: 3 })).toBe(
+        "mergeUp",
+      );
+    },
+  );
+
+  test.each([["- item"], ["plain"], ["```"], ["| a | b |"]])(
+    "ignores other lines: %s",
+    (lineText) => {
+      expect(decideEmptyBulletBackspace({ lineText, lineNumber: 2 })).toBe(
+        "ignore",
+      );
+    },
+  );
+});
+
 describe("isListItem and isProtectedLine", () => {
   test("detects list items", () => {
     expect(isListItem("- item")).toBe(true);
@@ -88,7 +118,9 @@ describe("isListItem and isProtectedLine", () => {
   test("detects protected lines", () => {
     expect(isProtectedLine("```js")).toBe(true);
     expect(isProtectedLine("| a | b |")).toBe(true);
+    expect(isProtectedLine("| a")).toBe(true);
     expect(isProtectedLine("---")).toBe(true);
     expect(isProtectedLine("- item")).toBe(false);
+    expect(isProtectedLine("a | b")).toBe(false);
   });
 });

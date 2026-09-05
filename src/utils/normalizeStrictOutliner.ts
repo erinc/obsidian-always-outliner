@@ -43,7 +43,10 @@ const optionalListMarkerRe = String.raw`(?:(?:[-*+]|\d+\.)[ \t]+)?`;
 const fencedCodeBlockRe = new RegExp(
   String.raw`^[ \t]*${optionalListMarkerRe}(` + "`{3,}|~{3,})",
 );
-const markdownTableRowRe = /^[ \t]*\|.*\|[ \t]*$/;
+// Any line starting with a pipe is a table row, including rows still under
+// construction (e.g. `| a` before its closing pipe is typed). These must be
+// left alone so Obsidian's table creation and editing keep working.
+const markdownTableRowRe = /^[ \t]*\|/;
 
 function protectedLines(sourceLines: string[]) {
   const protectedLineIndexes = new Set<number>();
@@ -150,11 +153,16 @@ export function normalizeStrictOutliner(
     }
 
     const listMatch = sourceLine.match(listItemRe);
+    const emptyMarkerMatch = listMatch
+      ? null
+      : sourceLine.match(emptyListItemRe);
     const leadingWhitespace = sourceLine.match(/^[ \t]*/)?.[0] ?? "";
-    const marker = listMatch?.[2] ?? "-";
+    const marker = listMatch?.[2] ?? emptyMarkerMatch?.[2] ?? "-";
     const content = listMatch
       ? listMatch[4]
-      : sourceLine.slice(leadingWhitespace.length);
+      : emptyMarkerMatch
+        ? ""
+        : sourceLine.slice(leadingWhitespace.length);
     const oldContentStart = listMatch
       ? listMatch[1].length + listMatch[2].length + listMatch[3].length
       : leadingWhitespace.length;

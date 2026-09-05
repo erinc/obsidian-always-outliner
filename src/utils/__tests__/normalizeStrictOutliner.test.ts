@@ -182,6 +182,36 @@ describe("normalizeStrictOutliner", () => {
       ch: 2,
     });
   });
+
+  test("treats a bare marker as an empty bullet instead of content", () => {
+    expect(normalizeStrictOutliner("-", "  ").text).toBe("- ");
+    expect(normalizeStrictOutliner("  *", "  ").text).toBe("* ");
+    expect(normalizeStrictOutliner("1.", "  ").text).toBe("1. ");
+  });
+
+  test("keeps the indent of a bare nested marker", () => {
+    expect(normalizeStrictOutliner("- a\n  *", "  ").text).toBe("- a\n  * ");
+  });
+
+  test("maps a cursor out of a bare marker", () => {
+    const result = normalizeStrictOutliner("-", "  ");
+
+    expect(result.mapPosition({ line: 0, ch: 1 })).toEqual({
+      line: 0,
+      ch: 2,
+    });
+  });
+
+  test("leaves table rows under construction alone", () => {
+    expect(normalizeStrictOutliner("| a", "  ").text).toBe("| a");
+    expect(normalizeStrictOutliner("- todo\n| a", "  ").text).toBe(
+      "- todo\n| a",
+    );
+  });
+
+  test("still bullets lines with pipes elsewhere", () => {
+    expect(normalizeStrictOutliner("a | b", "  ").text).toBe("- a | b");
+  });
 });
 
 describe("findEmptyListMarkers", () => {

@@ -18,7 +18,7 @@ import {
 } from "@codemirror/view";
 
 import {
-  isEmptyBullet,
+  decideEmptyBulletBackspace,
   isEmptyTopLevelBullet,
   isListItem,
   isProtectedLine,
@@ -138,7 +138,11 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     return false;
   }
 
-  /** Backspace must not remove the first bullet of a note. */
+  /**
+   * Backspace on an empty bullet merges it up into the previous line, except
+   * on the first line where the bullet is kept. Anything else falls through
+   * to the Outliner plugin.
+   */
   private handleBackspace(view: EditorView): boolean {
     if (!this.settings.enabled || isComposing(view)) {
       return false;
@@ -155,10 +159,28 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     }
 
     const line = state.doc.lineAt(range.head);
-    if (line.number !== 1 || !isEmptyBullet(line.text)) {
+    const action = decideEmptyBulletBackspace({
+      lineText: line.text,
+      lineNumber: line.number,
+    });
+
+    if (action === "ignore") {
       return false;
     }
 
+    if (action === "keep" || line.number <= 1) {
+      return true;
+    }
+
+    const prev = state.doc.line(line.number - 1);
+    if (isProtectedLine(prev.text)) {
+      return true;
+    }
+
+    view.dispatch({
+      changes: { from: prev.to, to: line.to, insert: "" },
+      selection: EditorSelection.cursor(prev.to),
+    });
     return true;
   }
 

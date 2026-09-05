@@ -11,12 +11,14 @@ const topLevelEmptyBulletRe = /^([-*+]|\d+\.)[ \t]+(\[ \][ \t]*)?$/;
 
 const frontmatterDelimiterRe = /^---[ \t]*$/;
 const fencedCodeBlockDelimiterRe = /^[ \t]*(`{3,}|~{3,})/;
-const markdownTableRowRe = /^[ \t]*\|.*\|[ \t]*$/;
+const markdownTableRowRe = /^[ \t]*\|/;
 
 /**
  * Lines the enforcer must leave alone (single-line approximation of the
  * protected blocks in normalizeStrictOutliner: frontmatter, fenced code
  * blocks and tables are normalized as whole blocks, not per line).
+ * Table rows count from the opening pipe so rows under construction are
+ * left alone too and Obsidian's table handling keeps working.
  */
 export function isProtectedLine(text: string): boolean {
   return (
@@ -41,6 +43,26 @@ export function isEmptyTopLevelBullet(text: string): boolean {
 /** Any empty bullet; used for the first-line Backspace guard. */
 export function isEmptyBullet(text: string): boolean {
   return emptyBulletRe.test(text);
+}
+
+export type EmptyBulletBackspace = "keep" | "mergeUp" | "ignore";
+
+/**
+ * Decides what Backspace does on a line with an empty selection.
+ * - empty bullet on the first line: keep the bullet (swallow the key)
+ * - empty bullet on any other line: delete the line and join with the
+ *   previous one
+ * - anything else: ignore (let upstream or the editor handle it)
+ */
+export function decideEmptyBulletBackspace(args: {
+  lineText: string;
+  lineNumber: number; // 1-based, as in CodeMirror
+}): EmptyBulletBackspace {
+  if (!isEmptyBullet(args.lineText)) {
+    return "ignore";
+  }
+
+  return args.lineNumber === 1 ? "keep" : "mergeUp";
 }
 
 export interface PlainLineSplit {
