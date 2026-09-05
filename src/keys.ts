@@ -4,6 +4,7 @@
  * They operate on plain strings so they stay unit-testable without
  * Obsidian or CodeMirror.
  */
+import { isTableContentLine } from "./utils/normalizeStrictOutliner";
 
 const listItemRe = /^([ \t]*)([-*+]|\d+\.)([ \t]+)(.*)$/;
 const emptyBulletRe = /^[ \t]*([-*+]|\d+\.)[ \t]+(\[ \][ \t]*)?$/;
@@ -26,6 +27,15 @@ export function isProtectedLine(text: string): boolean {
     fencedCodeBlockDelimiterRe.test(text) ||
     markdownTableRowRe.test(text)
   );
+}
+
+/**
+ * Doc-aware version of isProtectedLine: additionally recognizes table rows
+ * without outer pipes through their delimiter context.
+ */
+export function isProtectedLineInDoc(lines: string[], index: number): boolean {
+  const line = lines[index] ?? "";
+  return isProtectedLine(line) || isTableContentLine(lines, index);
 }
 
 export function isListItem(text: string): boolean {

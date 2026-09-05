@@ -11,6 +11,9 @@ plugin installed and enabled; this plugin layers enforcement on top of it.
   bullet keeps the bullet instead of exiting the list.
 - Backspace on an empty bullet deletes the line and joins the previous line;
   the first bullet of a note is never removed.
+- Tables are left alone, with or without outer pipes. A table row swallowed
+  into a bullet (e.g. via Insert table on an empty bullet) is unwrapped so
+  the table renders again.
 
 ## Install
 

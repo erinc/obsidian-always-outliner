@@ -21,9 +21,10 @@ import {
   decideEmptyBulletBackspace,
   isEmptyTopLevelBullet,
   isListItem,
-  isProtectedLine,
+  isProtectedLineInDoc,
   splitPlainLine,
 } from "./keys";
+import { isNoteEditor } from "./utils/editorScope";
 import {
   findEmptyListMarkers,
   normalizeStrictOutliner,
@@ -93,7 +94,7 @@ export default class AlwaysOutlinerPlugin extends Plugin {
    * top-level bullet keeps the bullet. Everything else falls through to
    * the Outliner plugin. */
   private handleEnter(view: EditorView): boolean {
-    if (!this.settings.enabled || isComposing(view)) {
+    if (!this.settings.enabled || !isNoteEditor(view) || isComposing(view)) {
       return false;
     }
 
@@ -110,7 +111,8 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     }
 
     const line = headLine;
-    if (isProtectedLine(line.text)) {
+    const docLines = state.doc.toString().split("\n");
+    if (isProtectedLineInDoc(docLines, line.number - 1)) {
       return false;
     }
 
@@ -144,7 +146,7 @@ export default class AlwaysOutlinerPlugin extends Plugin {
    * to the Outliner plugin.
    */
   private handleBackspace(view: EditorView): boolean {
-    if (!this.settings.enabled || isComposing(view)) {
+    if (!this.settings.enabled || !isNoteEditor(view) || isComposing(view)) {
       return false;
     }
 
@@ -173,7 +175,8 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     }
 
     const prev = state.doc.line(line.number - 1);
-    if (isProtectedLine(prev.text)) {
+    const docLines = state.doc.toString().split("\n");
+    if (isProtectedLineInDoc(docLines, line.number - 2)) {
       return true;
     }
 
@@ -317,6 +320,9 @@ class AlwaysOutlinerSettingTab extends PluginSettingTab {
 }
 
 function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
+  if (!isNoteEditor(view) || isComposing(view)) {
+    return;
+  }
   const source = view.state.doc.toString();
   const normalization = normalizeStrictOutliner(source, indentChars);
   const textChanged = normalization.text !== source;
@@ -372,6 +378,9 @@ function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
 }
 
 function buildEmptyMarkerDecorations(view: EditorView) {
+  if (!isNoteEditor(view)) {
+    return Decoration.none;
+  }
   const ranges = findEmptyListMarkers(view.state.doc.toString()).map(
     ({ from, to }) =>
       Decoration.mark({

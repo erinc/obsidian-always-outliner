@@ -44,9 +44,63 @@ const fencedCodeBlockRe = new RegExp(
   String.raw`^[ \t]*${optionalListMarkerRe}(` + "`{3,}|~{3,})",
 );
 // Any line starting with a pipe is a table row, including rows still under
-// construction (e.g. `| a` before its closing pipe is typed). These must be
-// left alone so Obsidian's table creation and editing keep working.
-const markdownTableRowRe = /^[ \t]*\|/;
+// construction (e.g. `| a` before its closing pipe is typed).
+const tableRowStartRe = /^[ \t]*\|/;
+// A bullet or numbered marker at the start of a line.
+const listMarkerStartRe = /^[ \t]*([-*+]|\d+\.)[ \t]+/;
+
+/**
+ * A GFM delimiter row, with or without outer pipes (`| --- | --- |`,
+ * `--- | ---`). Lines starting with a list marker are excluded so a bullet
+ * like `- | ---` is never mistaken for one.
+ */
+export function isTableDelimiterRow(line: string): boolean {
+  if (!line.includes("|") || listMarkerStartRe.test(line)) {
+    return false;
+  }
+
+  const cells = line.replace(/[ \t|:]/g, "");
+  return cells.length > 0 && /^-+$/.test(cells);
+}
+
+/**
+ * True when the given physical line belongs to a table: a pipe-start row, a
+ * delimiter row, a header row (a pipe-containing line above a delimiter), or
+ * a body row (a pipe-containing run below a delimiter).
+ */
+export function isTableContentLine(lines: string[], index: number): boolean {
+  const line = lines[index] ?? "";
+
+  if (tableRowStartRe.test(line) || isTableDelimiterRow(line)) {
+    return true;
+  }
+
+  // List lines are decided by the main loop (unwrap table content or keep
+  // the bullet), never claimed as table headers or bodies here.
+  if (listItemRe.test(line) || emptyListItemRe.test(line)) {
+    return false;
+  }
+
+  if (line.includes("|") && isTableDelimiterRow(lines[index + 1] ?? "")) {
+    return true;
+  }
+
+  let above = index - 1;
+  while (
+    above >= 0 &&
+    lines[above].includes("|") &&
+    lines[above].trim().length > 0 &&
+    !listItemRe.test(lines[above]) &&
+    !emptyListItemRe.test(lines[above])
+  ) {
+    if (isTableDelimiterRow(lines[above])) {
+      return true;
+    }
+    above--;
+  }
+
+  return false;
+}
 
 function protectedLines(sourceLines: string[]) {
   const protectedLineIndexes = new Set<number>();
@@ -89,7 +143,7 @@ function protectedLines(sourceLines: string[]) {
       continue;
     }
 
-    if (markdownTableRowRe.test(sourceLine)) {
+    if (isTableContentLine(sourceLines, index)) {
       protectedLineIndexes.add(index);
       protectedBlockLineIndexes.add(index);
     }
@@ -166,6 +220,26 @@ export function normalizeStrictOutliner(
     const oldContentStart = listMatch
       ? listMatch[1].length + listMatch[2].length + listMatch[3].length
       : leadingWhitespace.length;
+
+    // A bullet whose content is a table row is a table swallowed by list
+    // syntax (e.g. via Insert table on an empty bullet). Unwrap it so the
+    // table renders again instead of rotting as bullet content. Like
+    // protected lines, it leaves previousLevel untouched.
+    const nextLine =
+      index + 1 < sourceLines.length ? sourceLines[index + 1] : "";
+    if (
+      listMatch &&
+      content.startsWith("|") &&
+      (content.slice(1).includes("|") || isTableDelimiterRow(nextLine))
+    ) {
+      normalizedLines.push(content);
+      mappings.push({
+        oldContentStart,
+        newContentStart: 0,
+        newLength: content.length,
+      });
+      continue;
+    }
 
     let level = indentationLevel(leadingWhitespace, indentChars);
     if (index === 0) {

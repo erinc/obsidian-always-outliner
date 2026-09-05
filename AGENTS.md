@@ -58,8 +58,13 @@ The plugin registers three CodeMirror editor extensions:
 3. A `ViewPlugin` background normalizer — rewrites every physical line into
    a structurally valid list item (clamping indent jumps, treating a bare
    marker like `-` as an empty bullet), except protected blocks
-   (frontmatter, fenced code, tables). Text changes are dispatched
-   with `Transaction.addToHistory.of(false)` so repairs don't pollute undo.
+   (frontmatter, fenced code, tables with or without outer pipes). A bullet
+   whose content is a table row is unwrapped back into a table row. Text
+   changes are dispatched with `Transaction.addToHistory.of(false)` so
+   repairs don't pollute undo. Table detection lives in
+   `isTableContentLine` / `isTableDelimiterRow`, shared with the keymaps via
+   `isProtectedLineInDoc` so Enter/Backspace never fight Obsidian's table
+   handling.
 
 Keymap design rule: this plugin only claims keys the upstream plugin would
 mishandle (plain-line Enter, empty-bullet Backspace). Everything else must

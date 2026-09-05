@@ -4,6 +4,7 @@ import {
   isEmptyTopLevelBullet,
   isListItem,
   isProtectedLine,
+  isProtectedLineInDoc,
   splitPlainLine,
 } from "../../keys";
 
@@ -122,5 +123,15 @@ describe("isListItem and isProtectedLine", () => {
     expect(isProtectedLine("---")).toBe(true);
     expect(isProtectedLine("- item")).toBe(false);
     expect(isProtectedLine("a | b")).toBe(false);
+  });
+
+  test("detects table rows without outer pipes in context", () => {
+    const lines = ["a | b", "--- | ---", "c | d"];
+
+    expect(isProtectedLineInDoc(lines, 0)).toBe(true);
+    expect(isProtectedLineInDoc(lines, 1)).toBe(true);
+    expect(isProtectedLineInDoc(lines, 2)).toBe(true);
+    expect(isProtectedLineInDoc(["- x", "- | foo"], 1)).toBe(false);
+    expect(isProtectedLineInDoc(["plain"], 0)).toBe(false);
   });
 });

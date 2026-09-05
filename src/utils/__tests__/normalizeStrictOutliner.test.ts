@@ -212,6 +212,34 @@ describe("normalizeStrictOutliner", () => {
   test("still bullets lines with pipes elsewhere", () => {
     expect(normalizeStrictOutliner("a | b", "  ").text).toBe("- a | b");
   });
+
+  test("preserves tables without outer pipes", () => {
+    const table = "a | b\n--- | ---\nc | d\ne | f";
+
+    expect(normalizeStrictOutliner(table, "  ").text).toBe(table);
+  });
+
+  test("does not mistake setext headings for tables", () => {
+    expect(normalizeStrictOutliner("Title\n---\nbody", "  ").text).toBe(
+      "- Title\n- ---\n- body",
+    );
+  });
+
+  test("unwraps a table swallowed by list syntax", () => {
+    expect(
+      normalizeStrictOutliner("- |  |  |\n|--|--|\n|  |  |", "  ").text,
+    ).toBe("|  |  |\n|--|--|\n|  |  |");
+  });
+
+  test("unwraps a lone pipe-content bullet like its bare row", () => {
+    expect(normalizeStrictOutliner("- | a |", "  ").text).toBe("| a |");
+  });
+
+  test("keeps a single-pipe bullet without table context", () => {
+    expect(normalizeStrictOutliner("- x\n- | foo", "  ").text).toBe(
+      "- x\n- | foo",
+    );
+  });
 });
 
 describe("findEmptyListMarkers", () => {
