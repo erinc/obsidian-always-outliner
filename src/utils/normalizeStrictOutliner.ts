@@ -17,27 +17,6 @@ export interface StrictOutlinerNormalization {
 const listItemRe = /^([ \t]*)([-*+]|\d+\.)([ \t]+)(.*)$/;
 const emptyListItemRe = /^([ \t]*)([-*+]|\d+\.)([ \t]*)$/;
 
-export interface TextRange {
-  from: number;
-  to: number;
-}
-
-/** Returns marker ranges for list items with no content. */
-export function findEmptyListMarkers(text: string): TextRange[] {
-  const ranges: TextRange[] = [];
-  let lineOffset = 0;
-
-  for (const line of text.split("\n")) {
-    const match = line.match(emptyListItemRe);
-    if (match) {
-      const from = lineOffset + match[1].length;
-      ranges.push({ from, to: from + match[2].length });
-    }
-    lineOffset += line.length + 1;
-  }
-
-  return ranges;
-}
 const frontmatterDelimiterRe = /^---[ \t]*$/;
 const optionalListMarkerRe = String.raw`(?:(?:[-*+]|\d+\.)[ \t]+)?`;
 const fencedCodeBlockRe = new RegExp(
@@ -167,6 +146,16 @@ function protectedLines(sourceLines: string[]) {
   return protectedLineIndexes;
 }
 
+/** Blank note lines can show a bullet without storing a list marker. */
+export function isVirtualBulletLine(lines: string[], index: number): boolean {
+  return (
+    index >= 0 &&
+    index < lines.length &&
+    lines[index].trim().length === 0 &&
+    !protectedLines(lines).has(index)
+  );
+}
+
 function indentationLevel(indent: string, indentChars: string) {
   const unitWidth = indentChars === "\t" ? 4 : Math.max(indentChars.length, 1);
   let columns = 0;
@@ -179,7 +168,7 @@ function indentationLevel(indent: string, indentChars: string) {
 }
 
 /**
- * Enforces the strict Workflowy invariant: every physical line is a list item.
+ * Makes every line with content a list item, leaving empty lines marker-free.
  * Invalid indentation jumps are clamped so a line can only be one level deeper
  * than the item immediately before it.
  */
@@ -221,6 +210,28 @@ export function normalizeStrictOutliner(
       ? listMatch[1].length + listMatch[2].length + listMatch[3].length
       : leadingWhitespace.length;
 
+    if (
+      sourceLine.trim().length === 0 ||
+      emptyMarkerMatch ||
+      (listMatch && content.trim().length === 0)
+    ) {
+      const level =
+        index === 0
+          ? 0
+          : Math.min(
+              indentationLevel(leadingWhitespace, indentChars),
+              previousLevel + 1,
+            );
+      const emptyLine = indentChars.repeat(level);
+      normalizedLines.push(emptyLine);
+      mappings.push({
+        oldContentStart: sourceLine.length,
+        newContentStart: emptyLine.length,
+        newLength: emptyLine.length,
+      });
+      continue;
+    }
+
     // A bullet whose content is a table row is a table swallowed by list
     // syntax (e.g. via Insert table on an empty bullet). Unwrap it so the
     // table renders again instead of rotting as bullet content. Like
@@ -244,8 +255,6 @@ export function normalizeStrictOutliner(
     let level = indentationLevel(leadingWhitespace, indentChars);
     if (index === 0) {
       level = 0;
-    } else if (sourceLine.trim().length === 0) {
-      level = previousLevel;
     } else {
       level = Math.min(level, previousLevel + 1);
     }

@@ -9,7 +9,7 @@ import {
 } from "../../keys";
 
 describe("splitPlainLine", () => {
-  test("Enter turns a plain line into two outliner items", () => {
+  test("Enter splits a plain line into two items with content", () => {
     expect(
       splitPlainLine({ line: "plain text", anchorCh: 5, headCh: 5 }),
     ).toEqual({
@@ -30,8 +30,15 @@ describe("splitPlainLine", () => {
   test("preserves indentation for a plain indented line", () => {
     const split = splitPlainLine({ line: "  child", anchorCh: 7, headCh: 7 });
 
-    expect(split?.insert).toBe("  - child\n  - ");
-    expect(split?.cursorOffset).toBe("  - child".length + 1 + 4);
+    expect(split?.insert).toBe("  - child\n  ");
+    expect(split?.cursorOffset).toBe("  - child".length + 1 + 2);
+  });
+
+  test("Enter at the start keeps the first line empty", () => {
+    expect(splitPlainLine({ line: "plain", anchorCh: 0, headCh: 0 })).toEqual({
+      insert: "\n- plain",
+      cursorOffset: 3,
+    });
   });
 
   test.each([["- item"], ["  - item"], ["1. item"]])(
@@ -108,6 +115,12 @@ describe("decideEmptyBulletBackspace", () => {
       );
     },
   );
+
+  test("merges a marker-free blank line up", () => {
+    expect(decideEmptyBulletBackspace({ lineText: "  ", lineNumber: 2 })).toBe(
+      "mergeUp",
+    );
+  });
 });
 
 describe("isListItem and isProtectedLine", () => {

@@ -1,20 +1,20 @@
 import {
-  findEmptyListMarkers,
+  isVirtualBulletLine,
   normalizeStrictOutliner,
 } from "../normalizeStrictOutliner";
 
 describe("normalizeStrictOutliner", () => {
-  test("turns an empty document into an empty bullet", () => {
-    expect(normalizeStrictOutliner("", "  ").text).toBe("- ");
+  test("keeps an empty document empty", () => {
+    expect(normalizeStrictOutliner("", "  ").text).toBe("");
   });
 
-  test("turns every plain and blank line into a bullet", () => {
+  test("turns plain lines into bullets while leaving blank lines marker-free", () => {
     const result = normalizeStrictOutliner(
       "one\n\n  note\n        - too deep",
       "  ",
     );
 
-    expect(result.text).toBe("- one\n- \n  - note\n    - too deep");
+    expect(result.text).toBe("- one\n\n  - note\n    - too deep");
   });
 
   test("canonicalizes indentation and clamps level jumps", () => {
@@ -177,20 +177,26 @@ describe("normalizeStrictOutliner", () => {
   test("maps a cursor out of an existing empty bullet prefix", () => {
     const result = normalizeStrictOutliner("- ", "  ");
 
+    expect(result.text).toBe("");
     expect(result.mapPosition({ line: 0, ch: 0 })).toEqual({
       line: 0,
-      ch: 2,
+      ch: 0,
     });
   });
 
-  test("treats a bare marker as an empty bullet instead of content", () => {
-    expect(normalizeStrictOutliner("-", "  ").text).toBe("- ");
-    expect(normalizeStrictOutliner("  *", "  ").text).toBe("* ");
-    expect(normalizeStrictOutliner("1.", "  ").text).toBe("1. ");
+  test("removes bare empty markers", () => {
+    expect(normalizeStrictOutliner("-", "  ").text).toBe("");
+    expect(normalizeStrictOutliner("  *", "  ").text).toBe("");
+    expect(normalizeStrictOutliner("1.", "  ").text).toBe("");
   });
 
   test("keeps the indent of a bare nested marker", () => {
-    expect(normalizeStrictOutliner("- a\n  *", "  ").text).toBe("- a\n  * ");
+    expect(normalizeStrictOutliner("- a\n  *", "  ").text).toBe("- a\n  ");
+  });
+
+  test("adds the real marker only after text appears on a blank nested line", () => {
+    expect(normalizeStrictOutliner("- a\n  ", "  ").text).toBe("- a\n  ");
+    expect(normalizeStrictOutliner("- a\n  b", "  ").text).toBe("- a\n  - b");
   });
 
   test("maps a cursor out of a bare marker", () => {
@@ -198,7 +204,7 @@ describe("normalizeStrictOutliner", () => {
 
     expect(result.mapPosition({ line: 0, ch: 1 })).toEqual({
       line: 0,
-      ch: 2,
+      ch: 0,
     });
   });
 
@@ -242,12 +248,14 @@ describe("normalizeStrictOutliner", () => {
   });
 });
 
-describe("findEmptyListMarkers", () => {
-  test("finds unordered and numbered empty markers only", () => {
-    expect(findEmptyListMarkers("- \n  *\n1. \n- content")).toEqual([
-      { from: 0, to: 1 },
-      { from: 5, to: 6 },
-      { from: 7, to: 9 },
-    ]);
+describe("isVirtualBulletLine", () => {
+  test("shows a virtual bullet on an ordinary blank line", () => {
+    expect(isVirtualBulletLine(["- item", ""], 1)).toBe(true);
+  });
+
+  test("leaves protected block spacing alone", () => {
+    expect(isVirtualBulletLine(["- item", "", "```", "code", "```"], 1)).toBe(
+      false,
+    );
   });
 });

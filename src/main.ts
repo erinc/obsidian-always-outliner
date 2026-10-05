@@ -14,6 +14,7 @@ import {
   EditorView,
   ViewPlugin,
   ViewUpdate,
+  WidgetType,
   keymap,
 } from "@codemirror/view";
 
@@ -26,7 +27,7 @@ import {
 } from "./keys";
 import { isNoteEditor } from "./utils/editorScope";
 import {
-  findEmptyListMarkers,
+  isVirtualBulletLine,
   normalizeStrictOutliner,
 } from "./utils/normalizeStrictOutliner";
 
@@ -90,8 +91,8 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     });
   }
 
-  /** Enter on a plain line splits it into two bullets; Enter on an empty
-   * top-level bullet keeps the bullet. Everything else falls through to
+  /** Enter on a plain line splits it, marking only nonempty parts; Enter on
+   * an empty top-level bullet keeps the line. Everything else falls through to
    * the Outliner plugin. */
   private handleEnter(view: EditorView): boolean {
     if (!this.settings.enabled || !isNoteEditor(view) || isComposing(view)) {
@@ -113,6 +114,12 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     const line = headLine;
     const docLines = state.doc.toString().split("\n");
     if (isProtectedLineInDoc(docLines, line.number - 1)) {
+      return false;
+    }
+    if (
+      line.text.trim().length === 0 &&
+      !isVirtualBulletLine(docLines, line.number - 1)
+    ) {
       return false;
     }
 
@@ -161,6 +168,13 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     }
 
     const line = state.doc.lineAt(range.head);
+    const docLines = state.doc.toString().split("\n");
+    if (
+      line.text.trim().length === 0 &&
+      !isVirtualBulletLine(docLines, line.number - 1)
+    ) {
+      return false;
+    }
     const action = decideEmptyBulletBackspace({
       lineText: line.text,
       lineNumber: line.number,
@@ -175,7 +189,6 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     }
 
     const prev = state.doc.line(line.number - 1);
-    const docLines = state.doc.toString().split("\n");
     if (isProtectedLineInDoc(docLines, line.number - 2)) {
       return true;
     }
@@ -197,14 +210,20 @@ export default class AlwaysOutlinerPlugin extends Plugin {
         decorations: DecorationSet;
 
         constructor(private view: EditorView) {
-          this.decorations = buildEmptyMarkerDecorations(view);
+          this.decorations = buildVirtualBulletDecorations(
+            view,
+            plugin.settings.enabled,
+          );
           this.scheduleNormalization();
         }
 
         update(update: ViewUpdate) {
           this.view = update.view;
-          if (update.docChanged) {
-            this.decorations = buildEmptyMarkerDecorations(update.view);
+          if (update.docChanged || update.selectionSet) {
+            this.decorations = buildVirtualBulletDecorations(
+              update.view,
+              plugin.settings.enabled,
+            );
           }
           if (update.docChanged || update.selectionSet) {
             this.scheduleNormalization();
@@ -306,7 +325,7 @@ class AlwaysOutlinerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Always outliner mode")
       .setDesc(
-        "Make every line a bullet. Works on top of the Outliner plugin, which must be installed and enabled.",
+        "Add bullets when lines have content. Show a temporary bullet on the active empty line. Works on top of the Outliner plugin.",
       )
       .addToggle((toggle) => {
         toggle
@@ -377,16 +396,28 @@ function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
   }
 }
 
-function buildEmptyMarkerDecorations(view: EditorView) {
-  if (!isNoteEditor(view)) {
+class VirtualBulletWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const bullet = document.createElement("span");
+    bullet.className = "always-outliner-virtual-bullet";
+    bullet.setAttribute("aria-hidden", "true");
+    bullet.textContent = "• ";
+    return bullet;
+  }
+}
+
+function buildVirtualBulletDecorations(view: EditorView, enabled: boolean) {
+  if (!enabled || !isNoteEditor(view)) {
     return Decoration.none;
   }
-  const ranges = findEmptyListMarkers(view.state.doc.toString()).map(
-    ({ from, to }) =>
-      Decoration.mark({
-        class: "outliner-plugin-empty-list-marker",
-      }).range(from, to),
-  );
-
-  return Decoration.set(ranges, true);
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  const lines = view.state.doc.toString().split("\n");
+  if (!isVirtualBulletLine(lines, line.number - 1)) {
+    return Decoration.none;
+  }
+  return Decoration.set([
+    Decoration.widget({ widget: new VirtualBulletWidget(), side: -1 }).range(
+      line.to,
+    ),
+  ]);
 }

@@ -59,8 +59,8 @@ export type EmptyBulletBackspace = "keep" | "mergeUp" | "ignore";
 
 /**
  * Decides what Backspace does on a line with an empty selection.
- * - empty bullet on the first line: keep the bullet (swallow the key)
- * - empty bullet on any other line: delete the line and join with the
+ * - empty item on the first line: keep the line (swallow the key)
+ * - empty item on any other line: delete the line and join with the
  *   previous one
  * - anything else: ignore (let upstream or the editor handle it)
  */
@@ -68,7 +68,7 @@ export function decideEmptyBulletBackspace(args: {
   lineText: string;
   lineNumber: number; // 1-based, as in CodeMirror
 }): EmptyBulletBackspace {
-  if (!isEmptyBullet(args.lineText)) {
+  if (!isEmptyBullet(args.lineText) && args.lineText.trim().length !== 0) {
     return "ignore";
   }
 
@@ -76,16 +76,15 @@ export function decideEmptyBulletBackspace(args: {
 }
 
 export interface PlainLineSplit {
-  /** Two bullet lines joined by `\n`, preserving the original indent. */
+  /** Two lines joined by `\n`; only lines with content get a marker. */
   insert: string;
   /** Offset from the start of `insert` to the new cursor position. */
   cursorOffset: number;
 }
 
 /**
- * Turns a plain (non-list) line into two outliner items, splitting the
- * content at a same-line selection. Returns null for list items and
- * protected lines.
+ * Splits a plain (non-list) line at a same-line selection, adding markers
+ * only to nonempty parts. Returns null for list items and protected lines.
  */
 export function splitPlainLine(args: {
   line: string;
@@ -104,10 +103,12 @@ export function splitPlainLine(args: {
 
   const first = line.slice(indent.length, from);
   const second = line.slice(to);
-  const firstLine = `${indent}- ${first}`;
+  const firstLine = first.length > 0 ? `${indent}- ${first}` : indent;
+  const secondLine = second.length > 0 ? `${indent}- ${second}` : indent;
 
   return {
-    insert: `${firstLine}\n${indent}- ${second}`,
-    cursorOffset: firstLine.length + 1 + indent.length + 2,
+    insert: `${firstLine}\n${secondLine}`,
+    cursorOffset:
+      firstLine.length + 1 + indent.length + (second.length > 0 ? 2 : 0),
   };
 }
