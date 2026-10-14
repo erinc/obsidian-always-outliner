@@ -1,7 +1,7 @@
 {
   "id": "always-outliner",
   "name": "Always Outliner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.11.7",
   "description": "Enforces outliner mode on top of the Outliner plugin: lines get bullets when they have content.",
   "author": "Erinc",

@@ -7,6 +7,8 @@ interface LineMapping {
   oldContentStart: number;
   newContentStart: number;
   newLength: number;
+  /** The line was left byte-for-byte as is, so positions on it must not move. */
+  unchanged: boolean;
 }
 
 export interface StrictOutlinerNormalization {
@@ -191,6 +193,7 @@ export function normalizeStrictOutliner(
         oldContentStart: 0,
         newContentStart: 0,
         newLength: sourceLine.length,
+        unchanged: true,
       });
       continue;
     }
@@ -228,6 +231,7 @@ export function normalizeStrictOutliner(
         oldContentStart: sourceLine.length,
         newContentStart: emptyLine.length,
         newLength: emptyLine.length,
+        unchanged: emptyLine === sourceLine,
       });
       continue;
     }
@@ -248,6 +252,7 @@ export function normalizeStrictOutliner(
         oldContentStart,
         newContentStart: 0,
         newLength: content.length,
+        unchanged: false,
       });
       continue;
     }
@@ -268,6 +273,7 @@ export function normalizeStrictOutliner(
       oldContentStart,
       newContentStart,
       newLength: normalizedLine.length,
+      unchanged: normalizedLine === sourceLine,
     });
     previousLevel = level;
   }
@@ -277,6 +283,12 @@ export function normalizeStrictOutliner(
     mapPosition(position) {
       const line = Math.max(0, Math.min(position.line, mappings.length - 1));
       const mapping = mappings[line];
+      // A cursor inside an untouched line's marker (e.g. at column 0, where
+      // Live Preview parks it next to a hidden checkbox) must stay put:
+      // pulling it to the content start fights Obsidian and Outliner.
+      if (mapping.unchanged) {
+        return { line, ch: position.ch };
+      }
       const contentOffset = Math.max(0, position.ch - mapping.oldContentStart);
       const ch = Math.min(
         mapping.newLength,

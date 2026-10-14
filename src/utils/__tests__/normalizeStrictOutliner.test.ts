@@ -54,6 +54,29 @@ describe("normalizeStrictOutliner", () => {
     });
   });
 
+  test("leaves the cursor alone on a line it does not change", () => {
+    // Live Preview parks the cursor at column 0, next to the hidden
+    // checkbox. Pulling it into the marker made Outliner's cursor keeper,
+    // Obsidian and this plugin chase each other forever.
+    const text = "+ [ ] Find a cardiologist\n- [ ] Check balance";
+    const result = normalizeStrictOutliner(text, "\t");
+
+    expect(result.text).toBe(text);
+    for (let line = 0; line < 2; line++) {
+      for (let ch = 0; ch <= 8; ch++) {
+        expect(result.mapPosition({ line, ch })).toEqual({ line, ch });
+      }
+    }
+  });
+
+  test("only moves the cursor on lines that actually change", () => {
+    const result = normalizeStrictOutliner("- [ ] kept\nplain", "\t");
+
+    expect(result.text).toBe("- [ ] kept\n- plain");
+    expect(result.mapPosition({ line: 0, ch: 0 })).toEqual({ line: 0, ch: 0 });
+    expect(result.mapPosition({ line: 1, ch: 0 })).toEqual({ line: 1, ch: 2 });
+  });
+
   test("preserves YAML frontmatter while normalizing the note body", () => {
     const result = normalizeStrictOutliner(
       [

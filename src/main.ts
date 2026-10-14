@@ -344,7 +344,12 @@ function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
   }
   const source = view.state.doc.toString();
   const normalization = normalizeStrictOutliner(source, indentChars);
-  const textChanged = normalization.text !== source;
+  // Never dispatch for selection alone: the text is already normalized, and
+  // a selection-only transaction re-arms Outliner's cursor keeper, which then
+  // fights Obsidian's Live Preview over where the cursor may sit.
+  if (normalization.text === source) {
+    return;
+  }
 
   const lineStarts: number[] = [];
   let offset = 0;
@@ -362,38 +367,15 @@ function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
     return lineStarts[mapped.line] + mapped.ch;
   };
 
-  const ranges = view.state.selection.ranges.map((range) => {
-    if (!textChanged && !range.empty) {
-      return range;
-    }
+  const ranges = view.state.selection.ranges.map((range) =>
+    EditorSelection.range(mapOffset(range.anchor), mapOffset(range.head)),
+  );
 
-    return EditorSelection.range(
-      mapOffset(range.anchor),
-      mapOffset(range.head),
-    );
-  });
-  const selectionChanged = ranges.some((range, index) => {
-    const previous = view.state.selection.ranges[index];
-    return range.anchor !== previous.anchor || range.head !== previous.head;
-  });
-
-  if (!textChanged && !selectionChanged) {
-    return;
-  }
-
-  const transaction = {
+  view.dispatch({
     selection: EditorSelection.create(ranges, view.state.selection.mainIndex),
     annotations: Transaction.addToHistory.of(false),
-  };
-
-  if (textChanged) {
-    view.dispatch({
-      ...transaction,
-      changes: { from: 0, to: source.length, insert: normalization.text },
-    });
-  } else {
-    view.dispatch(transaction);
-  }
+    changes: { from: 0, to: source.length, insert: normalization.text },
+  });
 }
 
 class VirtualBulletWidget extends WidgetType {
