@@ -1,10 +1,12 @@
 import {
   decideEmptyBulletBackspace,
+  isCursorBeforeContent,
   isEmptyBullet,
   isEmptyTopLevelBullet,
   isListItem,
   isProtectedLine,
   isProtectedLineInDoc,
+  outdentEmptyLine,
   splitPlainLine,
 } from "../../keys";
 
@@ -146,5 +148,42 @@ describe("isListItem and isProtectedLine", () => {
     expect(isProtectedLineInDoc(lines, 2)).toBe(true);
     expect(isProtectedLineInDoc(["- x", "- | foo"], 1)).toBe(false);
     expect(isProtectedLineInDoc(["plain"], 0)).toBe(false);
+  });
+});
+
+describe("outdentEmptyLine", () => {
+  test("has nothing to outdent at the top level", () => {
+    expect(outdentEmptyLine("", "\t")).toBeNull();
+  });
+
+  test("removes one tab", () => {
+    expect(outdentEmptyLine("\t\t", "\t")).toBe("\t");
+    expect(outdentEmptyLine("\t", "\t")).toBe("");
+  });
+
+  test("removes one space indent unit", () => {
+    expect(outdentEmptyLine("        ", "    ")).toBe("    ");
+    expect(outdentEmptyLine("  ", "  ")).toBe("");
+  });
+});
+
+describe("isCursorBeforeContent", () => {
+  test("is true at the start of a bullet's content", () => {
+    expect(isCursorBeforeContent("- foo", 0)).toBe(true);
+    expect(isCursorBeforeContent("- foo", 2)).toBe(true);
+    expect(isCursorBeforeContent("\t- foo", 3)).toBe(true);
+    expect(isCursorBeforeContent("- [ ] foo", 6)).toBe(true);
+    expect(isCursorBeforeContent("  plain", 2)).toBe(true);
+  });
+
+  test("is false once the cursor is inside or after the content", () => {
+    expect(isCursorBeforeContent("- foo", 3)).toBe(false);
+    expect(isCursorBeforeContent("- [ ] foo", 7)).toBe(false);
+    expect(isCursorBeforeContent("- foo", 5)).toBe(false);
+  });
+
+  test("is false for empty lines", () => {
+    expect(isCursorBeforeContent("", 0)).toBe(false);
+    expect(isCursorBeforeContent("\t", 1)).toBe(false);
   });
 });

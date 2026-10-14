@@ -1,6 +1,6 @@
 {
   "name": "always-outliner",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Enforce outliner mode on top of the Outliner plugin: every line is a bullet.",
   "main": "dist/main.js",

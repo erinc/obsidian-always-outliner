@@ -112,3 +112,39 @@ export function splitPlainLine(args: {
       firstLine.length + 1 + indent.length + (second.length > 0 ? 2 : 0),
   };
 }
+
+/**
+ * Enter on an empty line must not add another empty line. An indented empty
+ * line gives up one indent level instead (like Outliner does for an empty
+ * nested bullet); at the top level there is nothing to do. Returns the new
+ * line text, or null when the line has no indent to remove.
+ */
+export function outdentEmptyLine(
+  text: string,
+  indentChars: string,
+): string | null {
+  const indent = text.match(/^[ \t]*/)?.[0] ?? "";
+  if (indent.length === 0) {
+    return null;
+  }
+  if (indent.endsWith("\t")) {
+    return indent.slice(0, -1);
+  }
+
+  const unit = indentChars === "\t" ? 4 : Math.max(indentChars.length, 1);
+  return indent.slice(0, Math.max(0, indent.length - unit));
+}
+
+const contentStartRe = /^[ \t]*(?:(?:[-*+]|\d+\.)[ \t]+(?:\[.\][ \t]+)?)?/;
+
+/**
+ * True when the cursor sits before the first character of a line that has
+ * content. Enter there would only push the text down and leave an empty line
+ * above it, which outliner mode does not allow.
+ */
+export function isCursorBeforeContent(text: string, ch: number): boolean {
+  return (
+    text.trim().length > 0 &&
+    ch <= (text.match(contentStartRe)?.[0].length ?? 0)
+  );
+}

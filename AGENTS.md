@@ -49,8 +49,10 @@ src/
 The plugin registers three CodeMirror editor extensions:
 
 1. `Prec.highest` Enter keymap — splits plain lines into two bullets and
-   swallows Enter on empty top-level bullets. Returns `false` for real list
-   lines so the upstream Outliner plugin handles them.
+   never creates an extra empty line: Enter on an empty line outdents it one
+   level (top level: no-op), and Enter with the cursor before a line's content
+   is swallowed. Empty top-level bullets are swallowed too. Returns `false` for
+   other real list lines so the upstream Outliner plugin handles them.
 2. `Prec.high` Backspace keymap — on an empty bullet line with an empty
    selection it deletes the line and joins the previous line (`mergeUp`),
    except on the first line where the bullet is kept (`keep`), and next to

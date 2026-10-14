@@ -7,7 +7,7 @@ import {
   Setting,
 } from "obsidian";
 
-import { EditorSelection, Prec, Transaction } from "@codemirror/state";
+import { EditorSelection, Transaction } from "@codemirror/state";
 import {
   Decoration,
   DecorationSet,
@@ -15,14 +15,15 @@ import {
   ViewPlugin,
   ViewUpdate,
   WidgetType,
-  keymap,
 } from "@codemirror/view";
 
 import {
   decideEmptyBulletBackspace,
+  isCursorBeforeContent,
   isEmptyTopLevelBullet,
   isListItem,
   isProtectedLineInDoc,
+  outdentEmptyLine,
   splitPlainLine,
 } from "./keys";
 import { isNoteEditor } from "./utils/editorScope";
@@ -61,26 +62,15 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     await this.loadSettings();
     this.addSettingTab(new AlwaysOutlinerSettingTab(this.app, this));
 
-    this.registerEditorExtension(
-      Prec.highest(
-        keymap.of([
-          {
-            key: "Enter",
-            run: (view) => this.handleEnter(view),
-          },
-        ]),
-      ),
-    );
-
-    this.registerEditorExtension(
-      Prec.high(
-        keymap.of([
-          {
-            key: "Backspace",
-            run: (view) => this.handleBackspace(view),
-          },
-        ]),
-      ),
+    // Enter and Backspace are intercepted in the capture phase instead of via
+    // CodeMirror keymaps: Outliner registers its own handlers at the same
+    // Prec.highest, so whichever plugin loaded first would win and Outliner
+    // would handle empty/whitespace-only lines inside its lists before us.
+    this.registerDomEvent(
+      document,
+      "keydown",
+      (event) => this.handleKeydown(event),
+      { capture: true },
     );
 
     this.registerEditorExtension(this.createNormalizerExtension());
@@ -91,9 +81,39 @@ export default class AlwaysOutlinerPlugin extends Plugin {
     });
   }
 
-  /** Enter on a plain line splits it, marking only nonempty parts; Enter on
-   * an empty top-level bullet keeps the line. Everything else falls through to
-   * the Outliner plugin. */
+  private handleKeydown(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      (event.key !== "Enter" && event.key !== "Backspace") ||
+      !(event.target instanceof HTMLElement)
+    ) {
+      return;
+    }
+
+    const view = EditorView.findFromDOM(event.target);
+    if (!view) {
+      return;
+    }
+
+    const handled =
+      event.key === "Enter"
+        ? this.handleEnter(view)
+        : this.handleBackspace(view);
+    if (handled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }
+
+  /** Enter on a plain line splits it, marking only nonempty parts. Enter never
+   * creates an extra empty line: on an empty line it only outdents, and at the
+   * start of a line's content it does nothing. Everything else falls through
+   * to the Outliner plugin. */
   private handleEnter(view: EditorView): boolean {
     if (!this.settings.enabled || !isNoteEditor(view) || isComposing(view)) {
       return false;
@@ -121,6 +141,27 @@ export default class AlwaysOutlinerPlugin extends Plugin {
       !isVirtualBulletLine(docLines, line.number - 1)
     ) {
       return false;
+    }
+
+    if (line.text.trim().length === 0) {
+      const outdented = outdentEmptyLine(
+        line.text,
+        getDefaultIndentChars(this.app),
+      );
+      if (outdented !== null) {
+        view.dispatch({
+          changes: { from: line.from, to: line.to, insert: outdented },
+          selection: EditorSelection.cursor(line.from + outdented.length),
+        });
+      }
+      return true;
+    }
+
+    if (
+      range.empty &&
+      isCursorBeforeContent(line.text, range.head - line.from)
+    ) {
+      return true;
     }
 
     if (!isListItem(line.text)) {
@@ -378,13 +419,24 @@ function normalizeCodeMirrorView(view: EditorView, indentChars: string) {
   });
 }
 
+/**
+ * Mirrors the DOM Obsidian renders for a real bullet (a transparent `- `
+ * marker with the dot drawn by `.list-bullet::after`), so the virtual bullet
+ * picks up the theme's bullet size, color and indentation instead of
+ * imitating them with a text glyph.
+ */
 class VirtualBulletWidget extends WidgetType {
   toDOM(): HTMLElement {
-    const bullet = document.createElement("span");
-    bullet.className = "always-outliner-virtual-bullet";
-    bullet.setAttribute("aria-hidden", "true");
-    bullet.textContent = "• ";
-    return bullet;
+    const root = document.createElement("span");
+    root.className = "always-outliner-virtual-bullet";
+    root.setAttribute("aria-hidden", "true");
+
+    const marker = root.createSpan({
+      cls: "cm-formatting cm-formatting-list cm-formatting-list-ul cm-list-1",
+    });
+    marker.createSpan({ cls: "list-bullet", text: "-" });
+    root.createSpan({ cls: "cm-list-1", text: " " });
+    return root;
   }
 }
 
@@ -397,9 +449,20 @@ function buildVirtualBulletDecorations(view: EditorView, enabled: boolean) {
   if (!isVirtualBulletLine(lines, line.number - 1)) {
     return Decoration.none;
   }
-  return Decoration.set([
-    Decoration.widget({ widget: new VirtualBulletWidget(), side: -1 }).range(
-      line.to,
-    ),
-  ]);
+  // Same line classes Obsidian gives real list lines: tab size and spacing.
+  const depth =
+    (line.text.match(/\t/g)?.length ?? 0) +
+    Math.floor((line.text.match(/ /g)?.length ?? 0) / 2) +
+    1;
+  return Decoration.set(
+    [
+      Decoration.line({
+        class: `HyperMD-list-line HyperMD-list-line-${depth}`,
+      }).range(line.from),
+      Decoration.widget({ widget: new VirtualBulletWidget(), side: -1 }).range(
+        line.to,
+      ),
+    ],
+    true,
+  );
 }

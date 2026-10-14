@@ -1,6 +1,6 @@
-/* Show a bullet on the active blank line without adding Markdown text. */
+/* The virtual bullet reuses Obsidian's own list-bullet classes, so only
+   interaction needs handling here. */
 .always-outliner-virtual-bullet {
-  color: var(--text-muted);
   pointer-events: none;
   white-space: pre;
 }
